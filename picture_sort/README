@@ -1,0 +1,8 @@
+Tired of sorting pictures ?
+Good news! Your camera stores date information in the picture file.
+Based on this, this quick-and-dirty script moves every pictures from a directory
+to another, but sorted by date. When matching a picture shot on May, the 1rst 2010,
+the script will create a 2010/05/01 directory tree and store the picture in it.
+Usage:
+picture_sort directory_containing_unsorted_picture directory_to_sort_pictures
+

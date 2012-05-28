@@ -1,0 +1,12 @@
+Utility to connect to WPA2 AP in command line
+It allows to set up passphrase once. The passphrase is stored in encoded way in a file, so that it is not necessary to enter it again at next connection.
+
+Usage: 
+    wpa [-e essid | --essid essid] [-i iface | --iface iface] [-p passphrase | --pass passphrase] [-h | --help]
+
+   -e | --eesid essid name to connect to. If not present, list the available ESSIDs
+   -i | --iface interface to use. Defaulting to wlan0
+   -p | --pass  WPA passphrase. If not defined, look for a previously defined passphrase for the ESSID
+   -h | --help  Display this message and exits
+
+

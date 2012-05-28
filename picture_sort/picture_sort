@@ -1,0 +1,67 @@
+#!/bin/bash
+
+# Nicolas Biscos
+# THIS CODE IS UGLY I know
+# This scipt looks for all pictures in the directory passed as parameter
+# and sort them in the current folder. The sorting mechanism is based on
+# picture date contained in the exif header.
+# It creates some year/month/day directories containing the pictures.
+# If two pictures have the same name and the same date:
+#    - if they are the same, the one coming from the originated directory is
+#      deleted
+#    - if they ain't the same, a new one is created with a _1 prefix (the prefix 
+#      is automatically increased if already in use)
+
+if [ $# -ne 2 ];
+then
+   echo "Usage: $(basename $0) orig dest"
+   echo 
+   echo "   orig: directory containing pictures to sort"
+   echo "   dest: directory where to put sorted pictures"
+   exit 0
+fi
+
+orig=$1
+dst=$2
+
+SAVEIFS=$IFS
+IFS=$(echo -en "\n\b")
+for fi in $(find $orig -type f);
+do
+   dateTime=$(exif -m -t 0x132 "$fi")
+   if [ "_" != "_${dateTime}" ];
+   then
+      year=$(cut -d':' -f 1 < <(echo $dateTime))
+      month=$(cut -d':' -f 2 < <(echo $dateTime))
+      day=$(cut -d':' -f 3 < <(echo $dateTime) | cut -d' ' -f 1)
+      directory=${dst}/${year}/${month}/${day}
+      fi2=$(basename "$fi")
+      mkdir -p ${directory}
+      if [ -f ${directory}/${fi2} ];
+      then
+         diff "$fi" "${directory}/$fi2"
+         if [ $? -ne 0 ];
+         then
+            ext=$(cut -d '.' -f 2 < <(echo $fi2))
+            base=$(cut -d '.' -f 1 < <(echo $fi2))
+            fi2=${base}_${x}.${ext}
+            x=1
+            while [ -f ${directory}/${fi2} ];
+            do
+               x=$(($x+1))
+               $fi2=${base}_${x}.${ext}
+            done
+            echo ${fi} "->"  ${directory}/${fi2}
+            mv -n "${fi}" "${directory}/${fi2}"
+         else
+            echo "$fi and $fi2 are identical"
+            rm "$fi"
+         fi
+      else
+         echo ${fi} "->"  ${directory}/${fi2}
+         mv -n "${fi}" "${directory}/${fi2}"
+      fi
+   fi
+done
+IFS=$SAVEIFS  
+

@@ -1,0 +1,158 @@
+#!/bin/bash
+# Nicolas Biscos - Apr 2011
+
+# Check current
+function checkUser()
+{
+   local USER=$(whoami)
+   if [ "${USER}_" != "root_" ] ;
+   then
+      echo "-E- Must be root"
+      exit -1
+   fi
+}
+
+# Check that ifdata, iwlist, wpa_supplicant and wpa_passphrase are installed
+checkPackages ()
+{
+   local error=0
+   for bin in ifdata iwlist wpa_supplicant wpa_passphrase dhclient;
+   do
+      if ! which ${bin} > /dev/null
+      then
+         echo ${bin} is required to run this script
+         error=1
+      fi
+   done
+
+   if [ ${error} -ne 0 ] ;
+   then
+      exit 1;
+   fi
+}
+
+# Help
+function help()
+{
+   echo "wpa [-e essid | --essid essid] [-i iface | --iface iface] [-p passphrase | --pass passphrase] [-h | --help]"
+   echo 
+   echo Utility to connect to WPA AP
+   echo 
+   echo "   -e | --eesid essid name to connect to. If not present, list the available ESSIDs"
+   echo "   -i | --iface interface to use. Defaulting to wlan0"
+   echo "   -p | --pass  WPA passphrase. If not defined, look for a previously defined passphrase for the ESSID"
+   echo "   -h | --help  Display this message and exits"
+}
+
+#############################################################
+# Main
+checkUser
+checkPackages
+
+# Parse command line arguments
+TEMP=$(getopt -o i:p:e:h --long iface:,pass:,essid:,help -n wpa -- "$@")
+
+if [ $? -ne 0 ];
+then
+   echo 'Internal Error in command line parsing'
+   exit -1
+fi
+
+eval set -- "$TEMP"
+
+iface=wlan0
+essid=""
+pass=""
+
+while true;
+do
+   case $1 in
+      -i|--iface) shift;
+                  iface=$1;
+                  shift;
+                  ;;
+      -p|--pass) shift;
+                 pass=$1;
+                 shift;
+                 ;;
+      -e|--essid) shift;
+                  essid=$1;
+                  shift;
+                  ;;
+      -h|--help) help
+                 exit 0
+                 ;;
+      --) shift; break;;
+      *) echo "Invalid argument"
+         help
+         exit 1
+         ;;
+   esac
+done
+
+# Check whether interface exists
+if ! ifdata -e ${iface}
+then
+   echo Interface $iface does not exist
+   exit -1
+fi
+
+# Down interface
+ifconfig ${iface} down
+ifconfig ${iface} up
+dhclient -r ${iface}
+
+# change bash array delimiter
+OIFS=$IFS
+IFS=$'\n'
+
+# Get available ESSIDs
+allEssid=$(iwlist ${iface} scanning |(echo;grep -i essid)|awk '{FS="\""}{print $2}')
+
+found=0
+if [ "${essid}_" != "_" ] ;
+then
+   for pessid in ${allEssid};
+   do
+      if [ "${essid}" == "${pessid}" ] ;
+      then
+         found=1
+      fi
+   done
+   if [ ${found} -eq 0 ] ;
+   then
+      echo Essid ${essid} not found.
+   fi
+fi
+
+if [ ${found} -eq 0 ] ;
+then
+   echo Available essid are:
+   for pessid in ${allEssid};
+   do
+      echo '   '${pessid}
+   done
+   exit 1
+fi
+
+# retore bash array delimiter
+IFS=${OIFS}
+confFile=/etc/wpa_supplicant/wpa_supplicant_${essid}.conf
+
+iwconfig ${iface} essid "${essid}"
+
+# Create config file if new pass is defined, or reuse file if already defined
+if [ "${pass}_" != "_" ] ;
+then
+   (wpa_passphrase "${essid}" ${pass} | grep -v '^\s*#') > "${confFile}"
+else
+   if [ ! -e "${confFile}" ] ;
+   then
+      echo No password previously defined for essid ${essid}
+      exit 1
+   fi
+fi
+
+wpa_supplicant -Dwext -i${iface} -c"${confFile}" -B
+dhclient ${iface} && echo Connected to ${essid} with address $(ifdata -pa ${iface})
+
